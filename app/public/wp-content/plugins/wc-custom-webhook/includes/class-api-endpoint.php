@@ -15,7 +15,7 @@ class WC_Custom_Webhook_API_Endpoint {
      * Registracija rute za prijem webhook payload-a.
      */
     public function register_routes() {
-        register_rest_route( 'wc-custom-webhook/v1', '/receive-payload', array(
+        register_rest_route( 'wc-custom-webhook/v1', '/receive', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'handle_webhook_payload' ),
             'permission_callback' => '__return_true', // Možete postaviti ovde odgovarajuće dozvole
@@ -35,36 +35,35 @@ class WC_Custom_Webhook_API_Endpoint {
         // Logovanje za testiranje
         error_log( 'Received payload: ' . print_r( $payload, true ) );
 
-        // Provera da li je payload ispravan
-        if ( isset( $payload['product_id'] ) && isset( $payload['quantity'] ) ) {
-            $this->insert_into_database( $payload );
-            return new WP_REST_Response( 'Data processed successfully', 200 );
-        } else {
-            return new WP_REST_Response( 'Invalid payload', 400 );
+        if (empty($payload)) {
+            error_log('Nedostaje payload podataka.');
+            return new WP_Error( 'no_payload', 'Payload je prazan', [ 'status' => 400 ] );
         }
-    }
 
-    /**
-     * Funkcija za upisivanje podataka u bazu
-     */
-    private function insert_into_database( $payload ) {
         global $wpdb;
-
         $table_name = $wpdb->prefix . 'custom_cart_data';
 
-        // Ubacivanje podataka u tabelu
-        $wpdb->insert(
-            $table_name,
-            array(
-                'product_id' => $payload['product_id'],
-                'quantity'   => $payload['quantity'],
-                'user_id'    => get_current_user_id(),
-                'time'       => current_time('mysql'),
-            )
-        );
+        foreach ($payload['cart'] as $item) {
+            if (!isset($item['product_id']) || !isset($item['quantity']) || !isset($item['line_total'])) {
+                error_log('Nedostaju neki ključni podaci u payload-u: ' . print_r($item, true));
+                continue;
+            }
+            $insert_result = $wpdb->insert($table_name, [
+                'product_id'   => $item['product_id'],
+                'quantity'     => $item['quantity'],
+                'line_total'   => isset($item['line_total']) ? $item['line_total'] : 0,
+                'variation_id' => isset($item['variation_id']) ? $item['variation_id'] : 0,
+                'created_at'   => current_time('mysql'),
+            ]);
+            if ($insert_result === false)
+                error_log('Greška pri upisu u bazu: ' . print_r($wpdb->last_error, true));
 
-        error_log( 'Data successfully inserted into the database' );
+        }
+
+        error_log("Podaci su uspesno obradjeni i upisani u bazu.");
+        return new WP_REST_Response(['status' => 'success', 'message' => 'Data processed successfully.'], 200);
     }
+
 }
 
 // Inicijalizacija klase kada se plugin učita

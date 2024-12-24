@@ -8,12 +8,15 @@ class WC_Custom_Add_To_Cart {
         $cart = WC()->cart->get_cart();
         $payload = [];
 
-        foreach ($cart as $key => $item) {
+        foreach ($cart as $item) {
+
+            $line_total = isset($item['line_total']) ? $item['line_total'] : (isset($item['quantity']) && isset($item['data']) ? $item['quantity'] * $item['data']->get_price() : 0.0);
+
             $payload[] = [
-                'product_id'   => $item['product_id'],
-                'quantity'     => $item['quantity'],
-                'line_total'   => isset($item['line_total']) ? $item['line_total'] : 0,
-                'variation_id' => $item['variation_id'],
+                'product_id'   => isset($item['product_id']) ? $item['product_id'] : 0,
+                'quantity'     => isset($item['quantity']) ? $item['quantity'] : 0,
+                'line_total'   => $line_total,
+                'variation_id' => isset($item['variation_id']) ? $item['variation_id'] : 0,
             ];
         }
 

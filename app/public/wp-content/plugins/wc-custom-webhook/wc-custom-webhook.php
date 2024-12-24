@@ -15,34 +15,28 @@ require_once plugin_dir_path(__FILE__) . 'includes/class-create-table.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-add-to-cart.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-api-endpoint.php';
 
+register_activation_hook( __FILE__, 'wc_custom_webhook_activate' );
+function wc_custom_webhook_activate() {
+    WC_Custom_Create_Table::create_table();
+    wc_custom_register_webhooks();
+}
+
+function wc_any_webhook_exists() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'wc_webhooks';
+    $query = "SELECT COUNT(*) FROM $table_name";
+    return $wpdb->get_var($query) > 0;
+}
 
 // Funkcija koja registruje Webhookove
 function wc_custom_register_webhooks() {
-//    if ( class_exists( 'WC_Webhook' ) ) {
-//        error_log('WC_Webhook klasa je dostupna');
-//    } else {
-//        error_log('WC_Webhook klasa nije dostupna ');
-//    }
-    // Proveri da li su Webhook-ovi već registrovani
-//    if ( ! class_exists( 'WC_Webhooks' ) ) {
-//        error_log('WooCommerce Webhooks class not found');
-//        return;
-//    }
 
-    // Proveri da li je WooCommerce aktiviran
-//    if ( ! class_exists( 'WooCommerce' ) ) {
-//        error_log('WooCommerce nije aktiviran');
-//        return; // Ako WooCommerce nije aktiviran, ne nastavljaj sa registracijom Webhookova
-//    }
-//
-//    if ( ! class_exists( 'WC_Webhook' ) ) {
-//        error_log('WC_Webhook klasa nije pronađena');
-//        return;
-//    }
-//    error_log('Registering Webhooks');
+    if (wc_any_webhook_exists()) {
+        return;
+    }
 
     // Kreiraj "Add to Cart" Webhook
-    $webhook_url = 'http://wpsite.local/wp-json/wc-custom-webhook/v1/receive-payload'; // URL za endpoint koji prima podatke
+    $webhook_url = site_url('/wp-json/wc-custom-webhook/v1/receive');
     $webhook_data = array(
         'name'               => 'Add to Cart Webhook',
         'topic'              => 'woocommerce_cart_updated', // Ovaj topic se aktivira kada se proizvod doda u korpu
@@ -82,6 +76,9 @@ function wc_custom_register_webhooks() {
     $webhook_order_complete->save();
 }
 
-// Registruj Webhookove kada je plugin aktiviran
-//register_activation_hook( __FILE__, 'wc_custom_register_webhooks' );
 add_action( 'woocommerce_init', 'wc_custom_register_webhooks' );
+
+add_action( 'rest_api_init', function ( $server ) {
+    $api_endpoint = new WC_Custom_Webhook_API_Endpoint();
+    $api_endpoint->register_routes();
+});
